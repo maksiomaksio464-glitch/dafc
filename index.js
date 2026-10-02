@@ -12,22 +12,22 @@ app.listen(PORT, () => {
   console.log(`[+] Web server initialized on port ${PORT}`);
 });
 
-// Pobieranie wartości ze zmiennych środowiskowych (Render Environment Variables)
 const TOKEN = process.env.DISCORD_TOKEN;
 const GUILD_ID = process.env.GUILD_ID;
 const CHANNEL_ID = process.env.CHANNEL_ID;
 const BOT_APP_ID = process.env.BOT_APP_ID;
 const COMMAND_NAME = process.env.COMMAND_NAME;
+const COMMAND_ID = process.env.COMMAND_ID;         // Nowa zmienna dla ID komendy
+const COMMAND_VERSION = process.env.COMMAND_VERSION; // Nowa zmienna dla wersji komendy
 const STATUS_TEXT = process.env.STATUS_TEXT;
 
 const GATEWAY_URL = 'wss://gateway.discord.gg/?v=10&encoding=json';
 
 let messageTimeout = null;
 
-// Funkcja wysyłająca interakcję Slash
 async function triggerSlashCommand() {
-  if (!GUILD_ID || !CHANNEL_ID || !BOT_APP_ID || !COMMAND_NAME) {
-    console.error('[!] ERROR: Missing environment variables for slash command execution.');
+  if (!GUILD_ID || !CHANNEL_ID || !BOT_APP_ID || !COMMAND_NAME || !COMMAND_ID) {
+    console.error('[!] ERROR: Missing required environment variables (check COMMAND_ID).');
     return;
   }
 
@@ -38,7 +38,8 @@ async function triggerSlashCommand() {
       guild_id: GUILD_ID,
       channel_id: CHANNEL_ID,
       data: {
-        version: '1',
+        version: COMMAND_VERSION || '1',
+        id: COMMAND_ID,
         name: COMMAND_NAME,
         type: 1
       }
@@ -63,7 +64,6 @@ async function triggerSlashCommand() {
     console.error('[!] Network request error:', err.message);
   }
 
-  // Losowanie interwału wywołania: 24h + od 15 do 90 minut
   const base24h = 24 * 60 * 60 * 1000;
   const randomMinutes = Math.floor(Math.random() * (90 - 15 + 1)) + 15;
   const randomDelayMs = base24h + (randomMinutes * 60 * 1000);
@@ -73,7 +73,6 @@ async function triggerSlashCommand() {
   messageTimeout = setTimeout(triggerSlashCommand, randomDelayMs);
 }
 
-// Połączenie z bramką Gateway (utrzymywanie statusu i odbiór logów)
 function connect() {
   if (!TOKEN) {
     console.error('[!] ERROR: DISCORD_TOKEN is missing!');
@@ -91,7 +90,6 @@ function connect() {
     const payload = JSON.parse(data);
     const { op, t, d } = payload;
 
-    // 1. Nawiązanie sesji i Heartbeat
     if (op === 10) {
       const interval = d.heartbeat_interval;
 
@@ -131,7 +129,6 @@ function connect() {
       }
     }
 
-    // 2. Nasłuchiwanie odpowiedzi bota (w tym wiadomości Ephemeral/niewidocznych dla innych)
     if (t === 'MESSAGE_CREATE') {
       if (d.channel_id === CHANNEL_ID && d.author && d.author.id === BOT_APP_ID) {        
         const isEphemeral = (d.flags & 64) === 64;
