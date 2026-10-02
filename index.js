@@ -12,6 +12,7 @@ app.listen(PORT, () => {
   console.log(`[+] Web server initialized on port ${PORT}`);
 });
 
+// Pobieranie zmiennych środowiskowych z panelu Render.com
 const TOKEN = process.env.DISCORD_TOKEN;
 const GUILD_ID = process.env.GUILD_ID;
 const CHANNEL_ID = process.env.CHANNEL_ID;
@@ -25,45 +26,67 @@ const GATEWAY_URL = 'wss://gateway.discord.gg/?v=10&encoding=json';
 
 let messageTimeout = null;
 
-// Generator losowego ID sesyjnego (nonce)
+// Generator Snowflake nonce wymagany przez API Discorda
 function generateNonce() {
   return (BigInt(Date.now() - 1420070400000) << 22n).toString();
 }
 
 async function triggerSlashCommand() {
   if (!GUILD_ID || !CHANNEL_ID || !BOT_APP_ID || !COMMAND_NAME || !COMMAND_ID) {
-    console.error('[!] ERROR: Missing required environment variables (check COMMAND_ID).');
+    console.error('[!] ERROR: Missing required environment variables (check COMMAND_ID, BOT_APP_ID).');
     return;
   }
+
+  const cleanToken = TOKEN ? TOKEN.trim() : '';
+  const cleanAppId = String(BOT_APP_ID).trim();
+  const cleanGuildId = String(GUILD_ID).trim();
+  const cleanChannelId = String(CHANNEL_ID).trim();
+  const cleanCmdId = String(COMMAND_ID).trim();
+  const cleanCmdVersion = String(COMMAND_VERSION || '1').trim();
+  const cleanCmdName = String(COMMAND_NAME).trim();
 
   try {
     const payload = {
       type: 2,
-      application_id: String(BOT_APP_ID).trim(),
-      guild_id: String(GUILD_ID).trim(),
-      channel_id: String(CHANNEL_ID).trim(),
-      session_id: '0',
+      application_id: cleanAppId,
+      guild_id: cleanGuildId,
+      channel_id: cleanChannelId,
+      session_id: '806934110226ec0b7dfcd39e54ff8205',
       nonce: generateNonce(),
       analytics_location: 'slash_ui',
       data: {
-        version: String(COMMAND_VERSION || '1').trim(),
-        id: String(COMMAND_ID).trim(),
-        name: String(COMMAND_NAME).trim(),
-        type: 1
+        version: cleanCmdVersion,
+        id: cleanCmdId,
+        name: cleanCmdName,
+        type: 1,
+        options: [],
+        application_command: {
+          id: cleanCmdId,
+          application_id: cleanAppId,
+          version: cleanCmdVersion,
+          default_member_permissions: null,
+          type: 1,
+          nsfw: false,
+          name: cleanCmdName,
+          description: '',
+          dm_permission: true,
+          contexts: null
+        },
+        attachments: []
       }
     };
 
     const response = await fetch('https://discord.com/api/v10/interactions', {
       method: 'POST',
       headers: {
-        'Authorization': TOKEN.trim(),
+        'Authorization': cleanToken,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(payload),
     });
 
     if (response.status === 204 || response.ok) {
-      console.log(`[+] Executed command interaction: /${COMMAND_NAME}`);
+      console.log(`[+] Executed command interaction: /${cleanCmdName}`);
     } else {
       const errData = await response.json();
       console.error('[!] Interaction dispatch failed:', JSON.stringify(errData));
@@ -72,6 +95,7 @@ async function triggerSlashCommand() {
     console.error('[!] Network request error:', err.message);
   }
 
+  // Odczekaj 24 godziny + losowe 15-90 minut
   const base24h = 24 * 60 * 60 * 1000;
   const randomMinutes = Math.floor(Math.random() * (90 - 15 + 1)) + 15;
   const randomDelayMs = base24h + (randomMinutes * 60 * 1000);
@@ -87,6 +111,7 @@ function connect() {
     return;
   }
 
+  const cleanToken = TOKEN.trim();
   const ws = new WebSocket(GATEWAY_URL);
   let heartbeatInterval = null;
 
@@ -108,7 +133,7 @@ function connect() {
       const authPayload = {
         op: 2,
         d: {
-          token: TOKEN.trim(),
+          token: cleanToken,
           capabilities: 8189,
           properties: {
             os: 'Windows',
@@ -138,7 +163,10 @@ function connect() {
     }
 
     if (t === 'MESSAGE_CREATE') {
-      if (d.channel_id === CHANNEL_ID && d.author && d.author.id === BOT_APP_ID) {        
+      const cleanChannelId = String(CHANNEL_ID).trim();
+      const cleanBotAppId = String(BOT_APP_ID).trim();
+
+      if (d.channel_id === cleanChannelId && d.author && d.author.id === cleanBotAppId) {        
         const isEphemeral = (d.flags & 64) === 64;
         
         console.log(`\n============== RESPONSE RECEIVED (${isEphemeral ? 'Ephemeral / Private' : 'Public'}) ==============`);
