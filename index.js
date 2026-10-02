@@ -17,13 +17,18 @@ const GUILD_ID = process.env.GUILD_ID;
 const CHANNEL_ID = process.env.CHANNEL_ID;
 const BOT_APP_ID = process.env.BOT_APP_ID;
 const COMMAND_NAME = process.env.COMMAND_NAME;
-const COMMAND_ID = process.env.COMMAND_ID;         // Nowa zmienna dla ID komendy
-const COMMAND_VERSION = process.env.COMMAND_VERSION; // Nowa zmienna dla wersji komendy
+const COMMAND_ID = process.env.COMMAND_ID;
+const COMMAND_VERSION = process.env.COMMAND_VERSION;
 const STATUS_TEXT = process.env.STATUS_TEXT;
 
 const GATEWAY_URL = 'wss://gateway.discord.gg/?v=10&encoding=json';
 
 let messageTimeout = null;
+
+// Generator losowego ID sesyjnego (nonce)
+function generateNonce() {
+  return (BigInt(Date.now() - 1420070400000) << 22n).toString();
+}
 
 async function triggerSlashCommand() {
   if (!GUILD_ID || !CHANNEL_ID || !BOT_APP_ID || !COMMAND_NAME || !COMMAND_ID) {
@@ -34,13 +39,16 @@ async function triggerSlashCommand() {
   try {
     const payload = {
       type: 2,
-      application_id: BOT_APP_ID,
-      guild_id: GUILD_ID,
-      channel_id: CHANNEL_ID,
+      application_id: String(BOT_APP_ID).trim(),
+      guild_id: String(GUILD_ID).trim(),
+      channel_id: String(CHANNEL_ID).trim(),
+      session_id: '0',
+      nonce: generateNonce(),
+      analytics_location: 'slash_ui',
       data: {
-        version: COMMAND_VERSION || '1',
-        id: COMMAND_ID,
-        name: COMMAND_NAME,
+        version: String(COMMAND_VERSION || '1').trim(),
+        id: String(COMMAND_ID).trim(),
+        name: String(COMMAND_NAME).trim(),
         type: 1
       }
     };
@@ -48,7 +56,7 @@ async function triggerSlashCommand() {
     const response = await fetch('https://discord.com/api/v10/interactions', {
       method: 'POST',
       headers: {
-        'Authorization': TOKEN,
+        'Authorization': TOKEN.trim(),
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(payload),
@@ -58,7 +66,7 @@ async function triggerSlashCommand() {
       console.log(`[+] Executed command interaction: /${COMMAND_NAME}`);
     } else {
       const errData = await response.json();
-      console.error('[!] Interaction dispatch failed:', errData);
+      console.error('[!] Interaction dispatch failed:', JSON.stringify(errData));
     }
   } catch (err) {
     console.error('[!] Network request error:', err.message);
@@ -100,7 +108,7 @@ function connect() {
       const authPayload = {
         op: 2,
         d: {
-          token: TOKEN,
+          token: TOKEN.trim(),
           capabilities: 8189,
           properties: {
             os: 'Windows',
