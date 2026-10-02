@@ -12,7 +12,6 @@ app.listen(PORT, () => {
   console.log(`[+] Web server initialized on port ${PORT}`);
 });
 
-// Pobieranie zmiennych środowiskowych z panelu Render.com
 const TOKEN = process.env.DISCORD_TOKEN;
 const GUILD_ID = process.env.GUILD_ID;
 const CHANNEL_ID = process.env.CHANNEL_ID;
@@ -25,15 +24,15 @@ const STATUS_TEXT = process.env.STATUS_TEXT;
 const GATEWAY_URL = 'wss://gateway.discord.gg/?v=10&encoding=json';
 
 let messageTimeout = null;
+let activeSessionId = null; // Przechowuje prawdziwy session_id z WebSocket
 
-// Generator Snowflake nonce wymagany przez API Discorda
 function generateNonce() {
   return (BigInt(Date.now() - 1420070400000) << 22n).toString();
 }
 
 async function triggerSlashCommand() {
   if (!GUILD_ID || !CHANNEL_ID || !BOT_APP_ID || !COMMAND_NAME || !COMMAND_ID) {
-    console.error('[!] ERROR: Missing required environment variables (check COMMAND_ID, BOT_APP_ID).');
+    console.error('[!] ERROR: Missing required environment variables.');
     return;
   }
 
@@ -51,7 +50,7 @@ async function triggerSlashCommand() {
       application_id: cleanAppId,
       guild_id: cleanGuildId,
       channel_id: cleanChannelId,
-      session_id: '806934110226ec0b7dfcd39e54ff8205',
+      session_id: activeSessionId || '0', // Dynamiczne ID sesji z Gateway
       nonce: generateNonce(),
       analytics_location: 'slash_ui',
       data: {
@@ -81,6 +80,7 @@ async function triggerSlashCommand() {
       headers: {
         'Authorization': cleanToken,
         'Content-Type': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
       },
       body: JSON.stringify(payload),
     });
@@ -95,7 +95,6 @@ async function triggerSlashCommand() {
     console.error('[!] Network request error:', err.message);
   }
 
-  // Odczekaj 24 godziny + losowe 15-90 minut
   const base24h = 24 * 60 * 60 * 1000;
   const randomMinutes = Math.floor(Math.random() * (90 - 15 + 1)) + 15;
   const randomDelayMs = base24h + (randomMinutes * 60 * 1000);
@@ -122,6 +121,15 @@ function connect() {
   ws.on('message', (data) => {
     const payload = JSON.parse(data);
     const { op, t, d } = payload;
+
+    if (t === 'READY') {
+      activeSessionId = d.session_id;
+      console.log(`[+] Gateway Session Established. Session ID: ${activeSessionId}`);
+      
+      if (!messageTimeout) {
+        triggerSlashCommand();
+      }
+    }
 
     if (op === 10) {
       const interval = d.heartbeat_interval;
@@ -155,11 +163,7 @@ function connect() {
       };
 
       ws.send(JSON.stringify(authPayload));
-      console.log('[+] Gateway session authorized and status updated.');
-
-      if (!messageTimeout) {
-        triggerSlashCommand();
-      }
+      console.log('[+] Gateway authorization sent...');
     }
 
     if (t === 'MESSAGE_CREATE') {
@@ -171,18 +175,14 @@ function connect() {
         
         console.log(`\n============== RESPONSE RECEIVED (${isEphemeral ? 'Ephemeral / Private' : 'Public'}) ==============`);
         
-        if (d.content) {
-          console.log(`[CONTENT]: ${d.content}`);
-        }
+        if (d.content) console.log(`[CONTENT]: ${d.content}`);
 
         if (d.embeds && d.embeds.length > 0) {
           d.embeds.forEach((embed, index) => {
             console.log(`[EMBED #${index + 1} Title]: ${embed.title || 'N/A'}`);
             console.log(`[EMBED #${index + 1} Description]: ${embed.description || 'N/A'}`);
             if (embed.fields) {
-              embed.fields.forEach(f => {
-                console.log(`  - ${f.name}: ${f.value}`);
-              });
+              embed.fields.forEach(f => console.log(`  - ${f.name}: ${f.value}`));
             }
           });
         }
