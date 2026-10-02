@@ -1,6 +1,7 @@
 {
-  "name": "discord-24-7",
+  "name": "discord-gateway-service",
   "version": "1.0.0",
+  "description": "Background service integration",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
@@ -8,5 +9,8 @@
   "dependencies": {
     "express": "^4.19.2",
     "ws": "^8.16.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
