@@ -149,7 +149,7 @@ function connect() {
             device: '',
           },
           presence: {
-            status: 'online',
+            status: 'idle',
             afk: false,
             activities: [
               {
